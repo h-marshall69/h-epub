@@ -8,6 +8,8 @@ La importación mediante Storage Access Framework copia el EPUB al almacenamient
 
 El analizador de importación usa `android.util.Xml` con namespaces habilitados, DTD desactivado y rechazo explícito de eventos `DOCTYPE`/entidades. No depende de la característica Apache `http://apache.org/xml/features/disallow-doctype-decl`, que no está disponible en algunos parsers XML de Android y era la causa del fallo al importar EPUB válidos. Los errores internos de configuración XML no se exponen al usuario.
 
+Las referencias XML numéricas legítimas (`&#8217;`, `&#x2019;`) y entidades predefinidas se aceptan; las entidades declaradas por DTD o externas se rechazan. La importación no exige idioma, autor ni portada, por lo que EPUB en inglés (`en`, `en-US`, `en-GB`), español o sin esos metadatos siguen siendo candidatos válidos. Las causas originales se registran con `HEPUB-Importer`.
+
 La apertura del lector consulta Room mediante `Dispatchers.IO`; las operaciones de Fragment y Readium permanecen en el hilo principal. También se guarda el locator mediante IO, evitando bloqueos de la interfaz y mostrando un mensaje controlado si falta el registro o la copia privada.
 
 Readium Kotlin Toolkit 3.2.0 está integrado desde Maven Central mediante `readium-shared`, `readium-streamer` y `readium-navigator`; se habilitó core library desugaring. La apertura usa `AssetRetriever` sobre la copia privada y `PublicationOpener`/`DefaultPublicationParser`. El contenido se renderiza con `EpubNavigatorFragment` creado por `EpubNavigatorFactory`, aislado en `ReaderActivity`/`ReaderFragment` para respetar el ciclo de vida de Fragment. El factory recibe `publication.readingOrder`; `tableOfContents` se reserva para el índice de la interfaz.

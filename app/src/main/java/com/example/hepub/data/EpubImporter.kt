@@ -3,6 +3,7 @@ package com.example.hepub.data
 import android.content.ContentResolver
 import android.net.Uri
 import android.util.Xml
+import android.util.Log
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipFile
@@ -11,7 +12,7 @@ import org.xmlpull.v1.XmlPullParserException
 
 data class EpubMetadata(val title: String, val authors: List<String>, val coverEntry: String?)
 
-class EpubImportException(message: String) : Exception(message)
+class EpubImportException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 class EpubImporter(private val resolver: ContentResolver, private val storageDir: File) {
     var lastImportedFile: File? = null
@@ -30,14 +31,20 @@ class EpubImporter(private val resolver: ContentResolver, private val storageDir
             return parse(target)
         } catch (error: Exception) {
             target.delete()
+            Log.e("HEPUB-Importer", "Import failed for $uri", error)
             if (error is EpubImportException) throw error
-            throw EpubImportException("El archivo no es un EPUB válido")
+            throw EpubImportException("No se pudo procesar el archivo EPUB", error)
         }
     }
 
     internal fun parse(file: File): EpubMetadata {
-        return try { parseArchive(file) } catch (error: EpubImportException) { throw error }
-        catch (_: Exception) { throw EpubImportException("El archivo no es un EPUB válido") }
+        return try { parseArchive(file) } catch (error: EpubImportException) {
+            Log.e("HEPUB-Importer", "EPUB rejected: ${file.name}", error)
+            throw error
+        } catch (error: Exception) {
+            Log.e("HEPUB-Importer", "Unexpected EPUB parser failure: ${file.name}", error)
+            throw EpubImportException("No se pudo validar el archivo EPUB", error)
+        }
     }
 
     private fun parseArchive(file: File): EpubMetadata {
@@ -77,9 +84,7 @@ class EpubImporter(private val resolver: ContentResolver, private val storageDir
                     "item" -> parser.getAttributeValue(null, "id")?.let { id -> parser.getAttributeValue(null, "href")?.let { coverItems[id] = it } }
                 }
                 XmlPullParser.TEXT -> currentText?.append(parser.text)
-                XmlPullParser.ENTITY_REF -> currentText?.append(
-                    mapOf("amp" to "&", "lt" to "<", "gt" to ">", "apos" to "'", "quot" to "\"")[parser.name] ?: ""
-                )
+                XmlPullParser.ENTITY_REF -> currentText?.append(parser.name.decodeXmlEntity())
                 XmlPullParser.END_TAG -> if (parser.name.substringAfterLast(':') == currentName) {
                     val value = currentText?.toString()?.trim().orEmpty()
                     if (currentName == "title" && value.isNotEmpty()) title = value
@@ -103,7 +108,7 @@ class EpubImporter(private val resolver: ContentResolver, private val storageDir
                 while (event != XmlPullParser.END_DOCUMENT) {
                     if (event == XmlPullParser.DOCDECL)
                         throw EpubImportException("El EPUB contiene una declaración XML no permitida")
-                    if (event == XmlPullParser.ENTITY_REF && parser.name !in setOf("amp", "lt", "gt", "apos", "quot"))
+                    if (event == XmlPullParser.ENTITY_REF && !parser.name.isBuiltInXmlEntity())
                         throw EpubImportException("El EPUB contiene una entidad XML no permitida")
                     handler(parser, event)
                     event = parser.nextToken()
@@ -118,4 +123,22 @@ class EpubImporter(private val resolver: ContentResolver, private val storageDir
         (0 until attributeCount).firstNotNullOfOrNull { index ->
             if (getAttributeName(index).substringAfterLast(':') == name) getAttributeValue(index) else null
         }
+
+    private fun String?.isBuiltInXmlEntity(): Boolean {
+        if (this == "amp" || this == "lt" || this == "gt" || this == "apos" || this == "quot") return true
+        if (this == null || !startsWith("#")) return false
+        val value = try {
+            if (startsWith("#x", ignoreCase = true)) substring(2).toLong(16)
+            else substring(1).toLong(10)
+        } catch (_: NumberFormatException) { return false }
+        return value in 0..0x10FFFF && value !in 0xD800..0xDFFF
+    }
+
+    private fun String?.decodeXmlEntity(): String = when (this) {
+        "amp" -> "&"; "lt" -> "<"; "gt" -> ">"; "apos" -> "'"; "quot" -> "\""
+        else -> try {
+            val value = if (this?.startsWith("#x", true) == true) this.substring(2).toInt(16) else this!!.substring(1).toInt()
+            String(Character.toChars(value))
+        } catch (_: Exception) { "" }
+    }
 }

@@ -22,6 +22,20 @@ class EpubImporterTest {
         assertEquals("images/cover.jpg", metadata.coverEntry)
     }
 
+    @Test fun numericXmlEntitiesAndMissingOptionalMetadataAreAccepted() {
+        val file = epub("<package xmlns=" +
+            "\"http://www.idpf.org/2007/opf\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>English &#x2019;Book</dc:title><dc:language>en-US</dc:language></metadata><manifest/></package>")
+        val metadata = importer.parse(file)
+        assertEquals("English ’Book", metadata.title)
+        assertEquals(emptyList<String>(), metadata.authors)
+        assertEquals(null, metadata.coverEntry)
+    }
+
+    @Test fun epub2StylePackageWithoutLanguageOrCoverIsAccepted() {
+        val file = epub("<package xmlns=\"http://www.idpf.org/2007/opf\"><metadata><dc:title xmlns:dc=\"http://purl.org/dc/elements/1.1/\">A book</dc:title></metadata><manifest/></package>")
+        assertEquals("A book", importer.parse(file).title)
+    }
+
     @Test fun doctypeIsRejectedWithoutExternalResolution() {
         val file = epub("<!DOCTYPE package [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><package><metadata><title>&xxe;</title></metadata></package>")
         assertThrows(EpubImportException::class.java) { importer.parse(file) }
