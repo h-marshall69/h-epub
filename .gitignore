@@ -1,0 +1,53 @@
+# =====================================
+# H EPUB - Android / Kotlin
+# =====================================
+
+# Gradle
+.gradle/
+**/build/
+.kotlin/
+
+# Android SDK (configuración local)
+local.properties
+
+# IntelliJ IDEA / Android Studio
+.idea/
+*.iml
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+*~
+
+# Android NDK / CMake
+.externalNativeBuild/
+.cxx/
+
+# Capturas y resultados de pruebas
+/captures/
+**/test-results/
+**/reports/
+
+# APK y Android App Bundles
+*.apk
+*.aab
+*.ap_
+
+# Archivos temporales
+*.log
+*.tmp
+*.hprof
+
+# Firmas de Android
+*.jks
+*.keystore
+key.properties
+
+# Variables y secretos
+.env
+.env.*
+!.env.example
+
+# Archivos locales del editor
+.vscode/settings.json
+.vscode/*.log
